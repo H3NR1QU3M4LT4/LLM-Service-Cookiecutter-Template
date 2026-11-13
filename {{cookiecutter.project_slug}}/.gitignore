@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.eggs/
+
+# Environments and secrets
+.venv/
+.env
+.env.*
+!.env.example
+local.settings.json
+
+# Tool caches and reports
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Project outputs
+evals/results/
+
+# Azure Functions / Azurite
+.python_packages/
+requirements.txt
+__blobstorage__/
+__queuestorage__/
+__azurite_db*.json
+
+# IDEs and OS
+.idea/
+.vscode/
+.DS_Store

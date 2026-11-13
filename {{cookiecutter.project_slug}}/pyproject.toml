@@ -1,0 +1,80 @@
+[project]
+name = "{{ cookiecutter.project_slug }}"
+version = "0.1.0"
+description = "{{ cookiecutter.project_description }}"
+readme = "README.md"
+authors = [{ name = "{{ cookiecutter.author_name }}", email = "{{ cookiecutter.author_email }}" }]
+requires-python = ">={{ cookiecutter.python_version }}"
+dependencies = [
+    "ai-utils[eval]",
+{%- if cookiecutter.app_type == "fastapi" %}
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+{%- else %}
+    "azure-functions>=1.21.0",
+{%- endif %}
+{%- if cookiecutter.include_agent == "y" %}
+    "azure-ai-projects>=2.11.0",
+{%- endif %}
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.13.0",
+    "pre-commit>=4.0.0",
+    "pylint>=4.0.0",
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "ruff>=0.16.6",
+]
+
+[tool.uv.sources]
+# Override locally with: ai-utils = { path = "../ai-utils", editable = true }
+ai-utils = { git = "{{ cookiecutter.ai_utils_git }}", tag = "{{ cookiecutter.ai_utils_tag }}" }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/{{ cookiecutter.package_name }}"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+{%- if cookiecutter.app_type == "azure-function" %}
+pythonpath = ["."]
+{%- endif %}
+
+[tool.mypy]
+strict = true
+files = ["src", "tests", "evals"]
+{%- if cookiecutter.app_type == "azure-function" %}
+mypy_path = "."
+{%- endif %}
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+
+# azure-ai-evaluation ships untyped evaluator constructors.
+[[tool.mypy.overrides]]
+module = ["evals.*"]
+disallow_untyped_calls = false
+
+[tool.pylint.main]
+py-version = "{{ cookiecutter.python_version }}"
+jobs = 0
+
+[tool.pylint.format]
+max-line-length = 120
+
+[tool.pylint."messages control"]
+disable = [
+    "C0114", "C0115", "C0116",  # docstrings: enforced by ruff D on public code
+    "C0301",  # line-too-long: ruff format owns line length
+    "C0415",  # import-outside-toplevel: lazy imports are deliberate
+    "R0903",  # too-few-public-methods: pydantic models and dataclasses
+    "R0913", "R0917",  # too-many-(positional-)arguments: keyword options with defaults
+]

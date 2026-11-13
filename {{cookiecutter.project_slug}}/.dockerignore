@@ -1,0 +1,27 @@
+# Keep the build context small and secrets out of images.
+.git
+.github
+.venv
+**/__pycache__
+**/*.pyc
+.mypy_cache
+.pytest_cache
+.ruff_cache
+.coverage
+htmlcov
+.idea
+.vscode
+.DS_Store
+.env
+.env.*
+!.env.example
+local.settings.json
+.python_packages
+requirements.txt
+tests
+evals
+docs
+notebooks
+Dockerfile
+.dockerignore
+.pre-commit-config.yaml
