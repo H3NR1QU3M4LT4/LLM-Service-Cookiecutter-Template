@@ -8,8 +8,10 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 import httpx
+from azure.core.exceptions import AzureError
 from azure.identity import DefaultAzureCredential
 from ollama import ResponseError as OllamaResponseError
+from openai import OpenAIError
 from pydantic import BaseModel
 from semantic_kernel import Kernel
 from semantic_kernel.connectors.ai.ollama import OllamaChatCompletion, OllamaChatPromptExecutionSettings
@@ -24,10 +26,20 @@ from llm.prompts import Prompt, load_prompt
 
 logger = logging.getLogger(__name__)
 
-# KernelException/httpx.HTTPError/OllamaResponseError/ConnectionError: provider and transport failures (the Ollama
-# client raises its own errors, unwrapped by Semantic Kernel). ValueError: empty content, bad JSON or schema mismatch
-# (json.JSONDecodeError and pydantic.ValidationError both subclass it) - a retry usually fixes these.
-_RETRYABLE = (KernelException, httpx.HTTPError, OllamaResponseError, ConnectionError, TimeoutError, ValueError)
+# KernelException/OpenAIError/AzureError/httpx.HTTPError/OllamaResponseError/ConnectionError: provider, credential and
+# transport failures (the OpenAI, Azure and Ollama clients raise their own errors, unwrapped by Semantic Kernel).
+# ValueError: empty content, bad JSON or schema mismatch (json.JSONDecodeError and pydantic.ValidationError both
+# subclass it) - a retry usually fixes these.
+_RETRYABLE = (
+    KernelException,
+    OpenAIError,
+    AzureError,
+    httpx.HTTPError,
+    OllamaResponseError,
+    ConnectionError,
+    TimeoutError,
+    ValueError,
+)
 
 _MAX_LOGGED_CHARS = 2000
 _ASK_PROMPT = load_prompt("ask")

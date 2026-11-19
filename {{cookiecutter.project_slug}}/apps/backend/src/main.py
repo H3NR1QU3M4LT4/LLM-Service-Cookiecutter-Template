@@ -2,6 +2,7 @@
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 
 from config import get_settings
 from routes import llm, status
@@ -29,3 +30,9 @@ if _settings.cors_origins:
     )
 app.include_router(status.router)
 app.include_router(llm.router, dependencies=[Depends(require_api_key)])
+
+
+@app.get("/", include_in_schema=False)
+async def root() -> RedirectResponse:
+    """Send a browser opening the bare URL to the API docs (local) or the status page."""
+    return RedirectResponse("/docs" if _PUBLIC_DOCS else "/status")

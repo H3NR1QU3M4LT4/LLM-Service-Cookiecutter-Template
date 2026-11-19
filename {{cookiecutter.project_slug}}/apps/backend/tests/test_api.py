@@ -7,6 +7,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
+from azure.core.exceptions import ClientAuthenticationError
+from openai import OpenAIError
 from semantic_kernel.exceptions import ServiceResponseException
 from semantic_kernel.functions import KernelArguments
 
@@ -215,3 +217,20 @@ def test_empty_env_values_mean_unset(monkeypatch: pytest.MonkeyPatch) -> None:
     settings = Settings(_env_file=None, environment="prod")
     assert settings.log_llm_content is None
     assert settings.should_log_llm_content is False
+
+
+def test_root_redirects_to_docs_in_local(client_with: Callable[[list[Provider]], TestClient]) -> None:
+    response = client_with([_provider("azure", [])]).get("/", follow_redirects=False)
+    assert response.status_code == 307
+    assert response.headers["location"] == "/docs"
+
+
+@pytest.mark.parametrize("error", [OpenAIError("Missing credentials."), ClientAuthenticationError("no login")])
+def test_credential_errors_fall_back_instead_of_failing(
+    client_with: Callable[[list[Provider]], TestClient], error: Exception
+) -> None:
+    azure = _provider("azure", [error] * 2)
+    ollama = _provider("ollama", [_reply(GOOD)])
+    response = client_with([azure, ollama]).post("/ask", json={"question": "q"})
+    assert response.status_code == 200
+    assert response.json()["provider"] == "ollama"
