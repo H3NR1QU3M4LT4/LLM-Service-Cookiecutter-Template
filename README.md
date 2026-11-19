@@ -21,6 +21,7 @@ generated project. It needs the template to be a git repo with the change commit
 |---|---|---|
 | `project_name` / `project_slug` | My LLM Service / my-llm-service | Names; the slug prefixes every Azure resource |
 | `project_description`, `author_name`, `author_email` | | Metadata; the email is the default budget alert recipient |
+| `brand` | `lms` | `lms` (Leica Microsystems) or `lbs` (Leica Biosystems): logo in the navbar and name in the footer of both frontends |
 | `python_version` | `3.13` | |
 | `azure_location` | `westeurope` | Region for all resources |
 | `azure_openai_model` | `gpt-5.6-luna` | Model deployed in Foundry (check regional availability) |

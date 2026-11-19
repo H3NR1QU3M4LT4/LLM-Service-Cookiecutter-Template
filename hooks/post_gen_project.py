@@ -1,5 +1,7 @@
 """Clean build leftovers copied from the template, then create the Python lockfiles."""
 
+import html
+import json
 import shutil
 import subprocess
 import sys
@@ -16,6 +18,28 @@ for path in sorted(Path(".").rglob("*"), key=lambda p: len(p.parts), reverse=Tru
         shutil.rmtree(path, ignore_errors=True)
     elif path.is_file() and (path.name in JUNK_FILES or (path.name.startswith(".env") and path.name != ".env.example")):
         path.unlink()
+
+# Hooks are rendered by Jinja: never write doubled braces in them, and pass answers through `tojson`.
+# Leica brand (cookiecutter `brand`): the default logo, footer name and Docker build argument of both frontends.
+BRAND = {{ cookiecutter.brand | tojson }}
+for target, old, new in [
+    ("apps/frontend/src/layout/brand.ts", 'DEFAULT_BRAND: BrandKey = "lms"', f'DEFAULT_BRAND: BrandKey = "{BRAND}"'),
+    ("apps/evals/dashboard/src/layout/brand.ts", 'DEFAULT_BRAND: BrandKey = "lms"', f'DEFAULT_BRAND: BrandKey = "{BRAND}"'),
+    ("apps/frontend/Dockerfile", "ARG VITE_BRAND=lms", f"ARG VITE_BRAND={BRAND}"),
+]:
+    file = Path(target)
+    file.write_text(file.read_text().replace(old, new))
+
+# Browser tab titles and the navbar title: the project name (the dashboard adds "Evals").
+NAME = {{ cookiecutter.project_name | tojson }}
+for target, old, new in [
+    ("apps/frontend/index.html", "<title>LLM Service</title>", f"<title>{html.escape(NAME)}</title>"),
+    ("apps/frontend/src/App.tsx", 'title="LLM Service"', "title={" + json.dumps(NAME) + "}"),
+    ("apps/evals/dashboard/index.html", "<title>LLM Evals</title>", f"<title>{html.escape(NAME + ' Evals')}</title>"),
+    ("apps/evals/dashboard/src/App.tsx", 'title="LLM Evals"', "title={" + json.dumps(NAME + " Evals") + "}"),
+]:
+    file = Path(target)
+    file.write_text(file.read_text().replace(old, new))
 
 # uv.lock records the project name, so it cannot ship in the template.
 uv = shutil.which("uv")

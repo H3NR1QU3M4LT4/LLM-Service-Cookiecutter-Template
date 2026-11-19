@@ -1,22 +1,21 @@
+import lbs from "../assets/leica-biosystems.png";
 import lms from "../assets/leica-microsystems.png";
 
 export type BrandKey = "lms" | "lbs";
 
 export interface Brand {
   name: string;
-  /** Logo image; undefined falls back to a text wordmark until the asset is added. */
-  logo?: string;
+  logo: string;
 }
-
-// Drop the Leica Biosystems logo at src/assets/leica-biosystems.png (or .svg), in both apps: it is picked up here.
-const lbsLogo = Object.values(
-  import.meta.glob<string>("../assets/leica-biosystems.{png,svg}", { eager: true, import: "default" }),
-)[0];
 
 export const BRANDS: Record<BrandKey, Brand> = {
   lms: { name: "Leica Microsystems", logo: lms },
-  lbs: { name: "Leica Biosystems", logo: lbsLogo },
+  lbs: { name: "Leica Biosystems", logo: lbs },
 };
 
-/** Chosen at build time with VITE_BRAND=lms|lbs (default lms). */
-export const brand: Brand = BRANDS[(import.meta.env.VITE_BRAND as BrandKey | undefined) ?? "lms"] ?? BRANDS.lms;
+// Set when the project is generated (cookiecutter `brand`). VITE_BRAND=lms|lbs at build time overrides it.
+const DEFAULT_BRAND: BrandKey = "lms";
+
+/** Drives the navbar logo and the footer name. */
+export const brand: Brand =
+  BRANDS[(import.meta.env.VITE_BRAND as BrandKey | undefined) ?? DEFAULT_BRAND] ?? BRANDS[DEFAULT_BRAND];

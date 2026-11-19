@@ -5,7 +5,7 @@ cd "$(dirname "$0")/.."
 A=apps/frontend
 B=apps/evals/dashboard
 status=0
-for path in src/layout src/index.css src/assets/leica-microsystems.png public/favicon.ico; do
+for path in src/layout src/index.css src/assets public; do
   if ! diff -r "$A/$path" "$B/$path" >/dev/null; then
     echo "UI drift: $A/$path and $B/$path differ. Change both (see docs/frontend-ui.md)." >&2
     status=1

@@ -4,6 +4,10 @@
     "project_description": "A FastAPI + Semantic Kernel LLM service with a React frontend",
     "author_name": "Henrique Malta",
     "author_email": "henrique.malta@merkle.com",
+    "brand": [
+        "lms",
+        "lbs"
+    ],
     "python_version": "3.13",
     "azure_location": "westeurope",
     "azure_openai_model": "gpt-5.6-luna",
@@ -12,5 +16,11 @@
     "budget_amount_uat": "100",
     "budget_amount_prod": "500",
     "budget_alert_emails": "{{ cookiecutter.author_email }}",
-    "_copy_without_render": [".github/*", "apps/frontend/*", "apps/evals/dashboard/*", "apps/evals/prompts/*", "apps/backend/src/prompts/*"]
+    "_copy_without_render": [
+        ".github/*",
+        "apps/frontend/*",
+        "apps/evals/dashboard/*",
+        "apps/evals/prompts/*",
+        "apps/backend/src/prompts/*"
+    ]
 }

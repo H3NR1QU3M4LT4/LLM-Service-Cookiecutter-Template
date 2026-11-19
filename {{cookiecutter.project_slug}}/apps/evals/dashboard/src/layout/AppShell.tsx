@@ -1,5 +1,7 @@
+import { useEffect } from "react";
 import type { ReactNode } from "react";
 
+import { brand } from "./brand";
 import Footer from "./Footer";
 import type { Environment } from "./Footer";
 import Navbar from "./Navbar";
@@ -19,6 +21,11 @@ interface AppShellProps {
 
 /** Page chrome shared by every Leica app: navbar, centred content column with fixed margins, footer. */
 export default function AppShell({ title, navItems, activeNav, onNavSelect, navRight, footerVersion, footerEnvironment, footerInfo, children }: AppShellProps) {
+  // Browser tab title: "<app> · <brand>", e.g. "My LLM Service · Leica Biosystems".
+  useEffect(() => {
+    document.title = `${title} · ${brand.name}`;
+  }, [title]);
+
   return (
     <div className="flex min-h-screen flex-col">
       <Navbar title={title} items={navItems} active={activeNav} onSelect={onNavSelect} right={navRight} />

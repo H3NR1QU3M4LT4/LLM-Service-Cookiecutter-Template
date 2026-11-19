@@ -3,11 +3,11 @@
 import re
 import sys
 
-slug = "{{ cookiecutter.project_slug }}"
-suffix = "{{ cookiecutter.name_suffix }}"
-emails = "{{ cookiecutter.budget_alert_emails }}"
-python_version = "{{ cookiecutter.python_version }}"
-location = "{{ cookiecutter.azure_location }}"
+slug = {{ cookiecutter.project_slug | tojson }}
+suffix = {{ cookiecutter.name_suffix | tojson }}
+emails = {{ cookiecutter.budget_alert_emails | tojson }}
+python_version = {{ cookiecutter.python_version | tojson }}
+location = {{ cookiecutter.azure_location | tojson }}
 amounts = {
     "budget_amount_dev": "{{ cookiecutter.budget_amount_dev }}",
     "budget_amount_uat": "{{ cookiecutter.budget_amount_uat }}",
