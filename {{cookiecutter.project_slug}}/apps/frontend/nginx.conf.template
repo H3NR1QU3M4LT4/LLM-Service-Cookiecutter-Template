@@ -1,0 +1,17 @@
+server {
+    listen 8080;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # The API key lives here (injected at container start), never in the browser bundle.
+    location /api/ {
+        proxy_pass ${BACKEND_URL}/;
+        proxy_ssl_server_name on;
+        proxy_set_header X-API-Key "${API_KEY}";
+        proxy_read_timeout 120s;
+    }
+
+    location / {
+        try_files $uri /index.html;
+    }
+}

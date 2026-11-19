@@ -1,0 +1,17 @@
+line-length = 120
+target-version = "py{{ cookiecutter.python_version.replace('.', '') }}"
+src = ["."]
+
+[lint]
+select = ["E", "W", "F", "I", "N", "UP", "B", "A", "C4", "SIM", "RUF", "ANN", "D"]
+ignore = ["D203", "D213", "D100", "D104"]
+
+[lint.per-file-ignores]
+"tests/*" = ["ANN", "D"]
+
+# The backend modules are plain modules on sys.path, not part of this project.
+[lint.isort]
+known-third-party = ["config", "llm", "models"]
+
+[lint.pydocstyle]
+convention = "google"

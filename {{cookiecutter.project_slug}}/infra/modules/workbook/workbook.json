@@ -1,0 +1,230 @@
+{
+  "version": "Notebook/1.0",
+  "items": [
+    {
+      "type": 9,
+      "content": {
+        "version": "KqlParameterItem/1.0",
+        "parameters": [
+          {
+            "id": "time-range",
+            "version": "KqlParameterItem/1.0",
+            "name": "TimeRange",
+            "label": "Time range",
+            "type": 4,
+            "isRequired": true,
+            "value": {
+              "durationMs": 86400000
+            },
+            "typeSettings": {
+              "selectableValues": [
+                {
+                  "durationMs": 3600000
+                },
+                {
+                  "durationMs": 86400000
+                },
+                {
+                  "durationMs": 604800000
+                },
+                {
+                  "durationMs": 2592000000
+                }
+              ],
+              "allowCustom": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## API overview\nRequests, errors and latency come from Application Insights `requests`; LLM calls from the `llm.completed`, `llm.attempt_failed` and `llm.retry` log events."
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "requests | summarize Requests=count(), Failed=countif(success == false) by bin(timestamp, 15m) | render timechart",
+        "size": 1,
+        "title": "Requests and failures",
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "timechart"
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "requests | summarize Total=count(), Failed=countif(success == false) | extend SuccessRate=round(100.0 * (Total - Failed) / Total, 2) | project Total, Failed, SuccessRate",
+        "size": 1,
+        "title": "Success rate (%)",
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table"
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "requests | summarize Requests=count(), P95_ms=percentile(duration, 95) by name, resultCode | order by Requests desc",
+        "size": 1,
+        "title": "Requests by operation and status",
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table"
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "requests | summarize p50=percentile(duration, 50), p95=percentile(duration, 95) by bin(timestamp, 15m) | render timechart",
+        "size": 1,
+        "title": "Latency p50 / p95 (ms)",
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "timechart"
+      }
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## LLM"
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "traces | where message == \"llm.completed\" | extend provider=tostring(customDimensions.provider), model=tostring(customDimensions.model), prompt_version=tostring(customDimensions.prompt_version), input_tokens=toint(customDimensions.input_tokens), output_tokens=toint(customDimensions.output_tokens), latency_ms=toint(customDimensions.latency_ms) | summarize Input=sum(input_tokens), Output=sum(output_tokens) by bin(timestamp, 1h) | render columnchart",
+        "size": 1,
+        "title": "Tokens over time",
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "barchart"
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "traces | where message == \"llm.completed\" | extend provider=tostring(customDimensions.provider), model=tostring(customDimensions.model), prompt_version=tostring(customDimensions.prompt_version), input_tokens=toint(customDimensions.input_tokens), output_tokens=toint(customDimensions.output_tokens), latency_ms=toint(customDimensions.latency_ms) | summarize Calls=count(), InputTokens=sum(input_tokens), OutputTokens=sum(output_tokens), AvgLatency_ms=round(avg(latency_ms)), P95Latency_ms=percentile(latency_ms, 95) by provider, model, prompt_version | order by Calls desc",
+        "size": 1,
+        "title": "Tokens by provider, model and prompt version",
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table"
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "traces | where message == \"llm.completed\" | extend provider=tostring(customDimensions.provider), model=tostring(customDimensions.model), prompt_version=tostring(customDimensions.prompt_version), input_tokens=toint(customDimensions.input_tokens), output_tokens=toint(customDimensions.output_tokens), latency_ms=toint(customDimensions.latency_ms) | summarize p50=percentile(latency_ms, 50), p95=percentile(latency_ms, 95) by bin(timestamp, 1h), provider | render timechart",
+        "size": 1,
+        "title": "LLM latency by provider (ms)",
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "timechart"
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "traces | where message == \"llm.completed\" | extend provider=tostring(customDimensions.provider), model=tostring(customDimensions.model), prompt_version=tostring(customDimensions.prompt_version), input_tokens=toint(customDimensions.input_tokens), output_tokens=toint(customDimensions.output_tokens), latency_ms=toint(customDimensions.latency_ms) | summarize Calls=count() by provider, bin(timestamp, 1h) | render columnchart",
+        "size": 1,
+        "title": "Calls by provider (fallback usage)",
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "barchart"
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "traces | where message == \"llm.attempt_failed\" | extend provider=tostring(customDimensions.provider), error_type=tostring(customDimensions.error_type) | summarize Failures=count() by provider, error_type | order by Failures desc",
+        "size": 1,
+        "title": "Failed attempts by error",
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table"
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "traces | where message in (\"llm.retry\", \"llm.provider_failed\") | summarize Events=count() by message, bin(timestamp, 1h) | render timechart",
+        "size": 1,
+        "title": "Retries and provider failures",
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "timechart"
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "traces | where message == \"llm.attempt_failed\" | project timestamp, provider=tostring(customDimensions.provider), model=tostring(customDimensions.model), prompt_version=tostring(customDimensions.prompt_version), attempt=toint(customDimensions.attempt), latency_ms=toint(customDimensions.latency_ms), error_type=tostring(customDimensions.error_type), error=tostring(customDimensions.error), input=tostring(customDimensions.input), output=tostring(customDimensions.output) | order by timestamp desc | take 50",
+        "size": 0,
+        "title": "Latest failed attempts (input/output only when LOG_LLM_CONTENT is on)",
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table"
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "traces | where message == \"llm.completed\" | extend provider=tostring(customDimensions.provider), model=tostring(customDimensions.model), prompt_version=tostring(customDimensions.prompt_version), input_tokens=toint(customDimensions.input_tokens), output_tokens=toint(customDimensions.output_tokens), latency_ms=toint(customDimensions.latency_ms) | project timestamp, provider, model, prompt_version, input_tokens, output_tokens, latency_ms, input=tostring(customDimensions.input), output=tostring(customDimensions.output) | order by timestamp desc | take 50",
+        "size": 0,
+        "title": "Latest successful calls",
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table"
+      }
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Exceptions"
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "exceptions | summarize Count=count() by type, outerMessage | order by Count desc",
+        "size": 1,
+        "title": "Exceptions",
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table"
+      }
+    }
+  ],
+  "isLocked": false,
+  "fallbackResourceIds": []
+}

@@ -1,9 +1,9 @@
 # LLM Service Cookiecutter Template
 
-A single-package LLM service (FastAPI or Azure Function) built on
-[ai-utils](https://github.com/H3NR1QU3M4LT4/ai-utils), with evaluation and an optional Foundry agent.
-Use it for the many small services; use [llm-monorepo](../llm-monorepo) when you need several apps and
-Terragrunt infrastructure.
+A monorepo for one LLM service: a FastAPI backend (Semantic Kernel, Azure OpenAI / Foundry with an Ollama fallback,
+retry, validated JSON, versioned prompts), a React + Vite + Tailwind frontend, Application Insights telemetry, and
+Terragrunt infrastructure for `dev`, `uat` and `prod`. Use [llm-monorepo](../llm-monorepo) when you need several apps
+(Functions, container jobs, APIM, Redis).
 
 ## Generate
 
@@ -12,28 +12,27 @@ uvx cruft create /Users/hmalta01/projects/platform/templates/llm-service   # rec
 uvx cookiecutter /Users/hmalta01/projects/platform/templates/llm-service   # plain, no updates
 ```
 
-`cruft` records the template commit in `.cruft.json`, so `uvx cruft update` later pulls template fixes
-into the generated project. It needs the template to be a git repo with the change committed.
+`cruft` records the template commit in `.cruft.json`, so `uvx cruft update` later pulls template fixes into the
+generated project. It needs the template to be a git repo with the change committed.
 
 ## Options
 
 | Option | Default | Meaning |
 |---|---|---|
-| `project_name` / `project_slug` / `package_name` | My LLM Service / my-llm-service / my_llm_service | Names |
-| `app_type` | `fastapi` | `fastapi` or `azure-function` (HTTP trigger, v2 programming model) |
-| `include_agent` | `n` | `y` adds a Microsoft Foundry prompt agent (`azure-ai-projects` 2.x) with a function tool and optional Azure AI Search grounding |
-| `ai_utils_git` / `ai_utils_tag` | this repo's ai-utils, `v0.1.0` | Where the shared package comes from |
+| `project_name` / `project_slug` | My LLM Service / my-llm-service | Names; the slug prefixes every Azure resource |
+| `project_description`, `author_name`, `author_email` | | Metadata; the email is the default budget alert recipient |
 | `python_version` | `3.13` | |
+| `azure_location` | `westeurope` | Region for all resources |
+| `azure_openai_model` | `gpt-5.6-luna` | Model deployed in Foundry (check regional availability) |
+| `name_suffix` | `001` | Makes web app, registry and Foundry names globally unique |
+| `budget_amount_dev` / `_uat` / `_prod` | 50 / 100 / 500 | Monthly budget per environment |
+| `budget_alert_emails` | author email | Comma-separated; emailed at 80% of the budget |
 
 ## What you get
 
-- `src/<package>/service.py`: core logic on `ai_utils.llm.LLMClient`, independent of the HTTP layer
-- `api.py` (FastAPI) or `function_app.py` (Azure Function)
-- `agent.py` (optional): deploy a Foundry agent version and ask it, handling function-call rounds
-- `evals/run_eval.py`: runs `evals/data.jsonl` through the service (or agent) and scores it with
-  `azure-ai-evaluation` built-ins plus an `ai_utils` `RubricJudge`
-- `Dockerfile` + `.dockerignore` (`make docker-build` / `make docker-run`): multi-stage uv build, non-root user and
-  healthcheck for FastAPI; the official Azure Functions base image for Functions. Built for linux/amd64 (Azure).
-- `docs/AI_UTILS.md`: how to use every ai-utils tool (preprocessing, OCR, blob, RAG, eval, monitoring)
-- ruff (120), mypy strict, pytest with SDKs mocked, pre-commit (ruff, mypy, gitleaks), GitHub Actions CI,
-  `Makefile`, `CLAUDE.md`, `.env.example`
+See the generated project's README. In short: `apps/backend`, `apps/frontend`, `infra/` (Terragrunt, `live/{dev,uat,prod}`),
+`docs/` (observability, infrastructure, prompt versioning), `docker-compose.yml`, pre-commit hooks and GitHub Actions
+(CI quality gates, infrastructure plan/apply/destroy per environment).
+
+`apps/frontend/*`, `apps/backend/src/prompts/*` and `.github/*` are copied without rendering because they contain
+`{{ }}` that Jinja would otherwise try to evaluate.

@@ -1,0 +1,68 @@
+[project]
+name = "{{ cookiecutter.project_slug }}"
+version = "0.1.0"
+description = {{ cookiecutter.project_description | tojson }}
+readme = "README.md"
+authors = [{ name = {{ cookiecutter.author_name | tojson }}, email = {{ cookiecutter.author_email | tojson }} }]
+requires-python = ">={{ cookiecutter.python_version }}"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "pydantic-settings>=2.6.0",
+    "semantic-kernel[ollama]>=1.47.0",
+    "azure-identity>=1.19.0",
+    "tenacity>=9.0.0",
+    "pyyaml>=6.0",
+    "azure-monitor-opentelemetry>=1.6.0",
+    "opentelemetry-instrumentation-fastapi>=0.48b0",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.0",
+    "mypy>=1.13.0",
+    "pylint>=4.0.0",
+    "pytest>=8.3.0",
+    "types-pyyaml>=6.0",
+    "pytest-cov>=6.0.0",
+    "ruff>=0.16.6",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=src --cov-report=term-missing --cov-fail-under=80"
+
+[tool.coverage.run]
+branch = true
+omit = ["tests/*"]
+
+[tool.mypy]
+strict = true
+files = ["src", "tests"]
+mypy_path = "src"
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+
+[tool.pylint.main]
+py-version = "{{ cookiecutter.python_version }}"
+jobs = 0
+source-roots = ["src"]
+# Tests import the plain modules in src/ (pytest adds it to sys.path; pylint needs telling).
+init-hook = "import sys; sys.path.insert(0, 'src')"
+
+[tool.pylint.format]
+max-line-length = 120
+
+[tool.pylint."messages control"]
+disable = [
+    "C0114", "C0115", "C0116",  # docstrings: enforced by ruff D on public code
+    "C0301",  # line-too-long: ruff format owns line length
+    "C0415",  # import-outside-toplevel: lazy imports are deliberate
+    "R0903",  # too-few-public-methods: pydantic models
+    "R0902",  # too-many-instance-attributes: result records such as Completion
+    "R0913", "R0917",  # too-many-(positional-)arguments: keyword options with defaults
+    "R0914",  # too-many-locals: the per-attempt call-and-log function
+]

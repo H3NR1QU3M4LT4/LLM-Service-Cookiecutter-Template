@@ -1,0 +1,5 @@
+# Price per 1M tokens in USD, keyed "provider:model". Fill in from your Azure pricing page; models without an
+# entry get no cost. Ollama is free.
+# azure:gpt-5.6-luna:
+#   input_per_1m: 0.0
+#   output_per_1m: 0.0

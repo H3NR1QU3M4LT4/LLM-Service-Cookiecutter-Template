@@ -1,2 +1,0 @@
-{"query": "What is retrieval-augmented generation?", "ground_truth": "A technique that retrieves relevant documents and gives them to an LLM so its answer is grounded in them."}
-{"query": "What does exponential backoff do?", "ground_truth": "It retries a failed operation with waits that grow exponentially, reducing load on a struggling service."}

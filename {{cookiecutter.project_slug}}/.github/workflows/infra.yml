@@ -1,0 +1,215 @@
+name: Infrastructure - Terragrunt
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_ref:
+        description: Branch, tag, or commit SHA to run infrastructure from
+        required: true
+        default: main
+        type: string
+      environment:
+        description: Environment to target
+        required: true
+        type: choice
+        options:
+          - dev
+          - uat
+          - prod
+      operation:
+        description: Terragrunt operation
+        required: true
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+      image_tag:
+        description: Tag of the backend and frontend images in the registry (az acr build ... --image backend:<tag>)
+        required: false
+        default: latest
+        type: string
+      app_version:
+        description: Version shown on /status and in telemetry (APP_VERSION)
+        required: false
+        default: 0.0.1
+        type: string
+      destroy_confirmation:
+        description: Type DESTROY to allow destroy operation
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: infra-${{ inputs.environment }}
+  cancel-in-progress: false
+
+env:
+  TF_IN_AUTOMATION: true
+  TF_INPUT: false
+  TERRAGRUNT_NON_INTERACTIVE: true
+
+jobs:
+  validate_input:
+    name: Validate safety gates
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Enforce destructive confirmation
+        run: |
+          set -euo pipefail
+          if [ "${{ inputs.operation }}" = "destroy" ] && [ "${{ inputs.destroy_confirmation }}" != "DESTROY" ]; then
+            echo "Destroy blocked. Set destroy_confirmation to DESTROY."
+            exit 1
+          fi
+
+  fmt:
+    name: Terragrunt fmt (${{ inputs.environment }})
+    runs-on: ubuntu-24.04
+    needs: validate_input
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.target_ref }}
+
+      - uses: ./.github/actions/terragrunt-setup
+        with:
+          azure: "false"
+
+      - name: Terragrunt hclfmt check
+        run: terragrunt hclfmt --terragrunt-check --terragrunt-working-dir infra
+
+      - name: Terraform fmt check (modules)
+        run: terraform fmt -check -recursive infra/modules
+
+  plan:
+    name: Terragrunt plan (${{ inputs.environment }})
+    runs-on: ubuntu-24.04
+    needs: fmt
+    environment: ${{ inputs.environment }}
+    env:
+      IMAGE_TAG: ${{ inputs.image_tag }}
+      APP_VERSION: ${{ inputs.app_version }}
+      TF_VAR_api_key: ${{ inputs.environment == 'prod' && secrets.API_KEY_PROD ||
+        (inputs.environment == 'uat' && secrets.API_KEY_UAT || secrets.API_KEY_DEV) }}
+    defaults:
+      run:
+        working-directory: infra/live/${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.target_ref }}
+
+      - uses: ./.github/actions/terragrunt-setup
+        with:
+          azure-credentials: ${{ inputs.environment == 'prod' && secrets.AZURE_CREDENTIALS_PROD ||
+            (inputs.environment == 'uat' && secrets.AZURE_CREDENTIALS_UAT || secrets.AZURE_CREDENTIALS_DEV) }}
+          subscription-id: ${{ inputs.environment == 'prod' && vars.AZURE_SUBSCRIPTION_ID_PROD ||
+            (inputs.environment == 'uat' && vars.AZURE_SUBSCRIPTION_ID_UAT || vars.AZURE_SUBSCRIPTION_ID_DEV) }}
+          state-resource-group: ${{ vars.TF_STATE_RESOURCE_GROUP }}
+          state-storage-account: ${{ vars.TF_STATE_STORAGE_ACCOUNT }}
+          state-container: ${{ vars.TF_STATE_CONTAINER || 'tfstate' }}
+
+      - name: Terragrunt init and validate
+        run: |
+          set -euo pipefail
+          terragrunt run-all init -upgrade
+          terragrunt run-all validate
+
+      - name: Terragrunt plan
+        run: |
+          set -euo pipefail
+          terragrunt run-all plan -lock-timeout=15m -no-color | tee "${{ github.workspace }}/plan-${{ inputs.environment }}.log"
+
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: infra-${{ inputs.environment }}-plan-logs
+          path: plan-${{ inputs.environment }}.log
+          if-no-files-found: ignore
+          retention-days: 14
+
+  apply:
+    name: Terragrunt apply (${{ inputs.environment }})
+    runs-on: ubuntu-24.04
+    needs: plan
+    if: ${{ inputs.operation == 'apply' }}
+    environment: ${{ inputs.environment }}
+    env:
+      IMAGE_TAG: ${{ inputs.image_tag }}
+      APP_VERSION: ${{ inputs.app_version }}
+      TF_VAR_api_key: ${{ inputs.environment == 'prod' && secrets.API_KEY_PROD ||
+        (inputs.environment == 'uat' && secrets.API_KEY_UAT || secrets.API_KEY_DEV) }}
+    defaults:
+      run:
+        working-directory: infra/live/${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.target_ref }}
+
+      - uses: ./.github/actions/terragrunt-setup
+        with:
+          azure-credentials: ${{ inputs.environment == 'prod' && secrets.AZURE_CREDENTIALS_PROD ||
+            (inputs.environment == 'uat' && secrets.AZURE_CREDENTIALS_UAT || secrets.AZURE_CREDENTIALS_DEV) }}
+          subscription-id: ${{ inputs.environment == 'prod' && vars.AZURE_SUBSCRIPTION_ID_PROD ||
+            (inputs.environment == 'uat' && vars.AZURE_SUBSCRIPTION_ID_UAT || vars.AZURE_SUBSCRIPTION_ID_DEV) }}
+          state-resource-group: ${{ vars.TF_STATE_RESOURCE_GROUP }}
+          state-storage-account: ${{ vars.TF_STATE_STORAGE_ACCOUNT }}
+          state-container: ${{ vars.TF_STATE_CONTAINER || 'tfstate' }}
+
+      - name: Terragrunt apply
+        run: |
+          set -euo pipefail
+          terragrunt run-all apply -auto-approve -lock-timeout=15m -no-color | tee "${{ github.workspace }}/apply-${{ inputs.environment }}.log"
+
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: infra-${{ inputs.environment }}-apply-logs
+          path: apply-${{ inputs.environment }}.log
+          if-no-files-found: ignore
+          retention-days: 14
+
+  destroy:
+    name: Terragrunt destroy (${{ inputs.environment }})
+    runs-on: ubuntu-24.04
+    needs: plan
+    if: ${{ inputs.operation == 'destroy' }}
+    environment: ${{ inputs.environment }}
+    env:
+      IMAGE_TAG: ${{ inputs.image_tag }}
+      APP_VERSION: ${{ inputs.app_version }}
+      TF_VAR_api_key: ${{ inputs.environment == 'prod' && secrets.API_KEY_PROD ||
+        (inputs.environment == 'uat' && secrets.API_KEY_UAT || secrets.API_KEY_DEV) }}
+    defaults:
+      run:
+        working-directory: infra/live/${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.target_ref }}
+
+      - uses: ./.github/actions/terragrunt-setup
+        with:
+          azure-credentials: ${{ inputs.environment == 'prod' && secrets.AZURE_CREDENTIALS_PROD ||
+            (inputs.environment == 'uat' && secrets.AZURE_CREDENTIALS_UAT || secrets.AZURE_CREDENTIALS_DEV) }}
+          subscription-id: ${{ inputs.environment == 'prod' && vars.AZURE_SUBSCRIPTION_ID_PROD ||
+            (inputs.environment == 'uat' && vars.AZURE_SUBSCRIPTION_ID_UAT || vars.AZURE_SUBSCRIPTION_ID_DEV) }}
+          state-resource-group: ${{ vars.TF_STATE_RESOURCE_GROUP }}
+          state-storage-account: ${{ vars.TF_STATE_STORAGE_ACCOUNT }}
+          state-container: ${{ vars.TF_STATE_CONTAINER || 'tfstate' }}
+
+      - name: Terragrunt destroy
+        run: |
+          set -euo pipefail
+          terragrunt run-all destroy -auto-approve -lock-timeout=15m -no-color | tee "${{ github.workspace }}/destroy-${{ inputs.environment }}.log"
+
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: infra-${{ inputs.environment }}-destroy-logs
+          path: destroy-${{ inputs.environment }}.log
+          if-no-files-found: ignore
+          retention-days: 14

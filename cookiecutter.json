@@ -1,14 +1,16 @@
 {
     "project_name": "My LLM Service",
     "project_slug": "{{ cookiecutter.project_name.lower().replace(' ', '-').replace('_', '-') }}",
-    "package_name": "{{ cookiecutter.project_slug.replace('-', '_') }}",
-    "project_description": "An LLM service built on ai-utils",
+    "project_description": "A FastAPI + Semantic Kernel LLM service with a React frontend",
     "author_name": "Henrique Malta",
     "author_email": "henrique.malta@merkle.com",
-    "app_type": ["fastapi", "azure-function"],
-    "include_agent": ["n", "y"],
-    "ai_utils_git": "https://github.com/H3NR1QU3M4LT4/ai-utils.git",
-    "ai_utils_tag": "v0.1.0",
     "python_version": "3.13",
-    "_copy_without_render": [".github/*"]
+    "azure_location": "westeurope",
+    "azure_openai_model": "gpt-5.6-luna",
+    "name_suffix": "001",
+    "budget_amount_dev": "50",
+    "budget_amount_uat": "100",
+    "budget_amount_prod": "500",
+    "budget_alert_emails": "{{ cookiecutter.author_email }}",
+    "_copy_without_render": [".github/*", "apps/frontend/*", "apps/evals/dashboard/*", "apps/evals/prompts/*", "apps/backend/src/prompts/*"]
 }

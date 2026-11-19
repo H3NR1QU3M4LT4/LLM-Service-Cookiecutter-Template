@@ -1,0 +1,28 @@
+# Run both: cp apps/backend/.env.example apps/backend/.env, then `docker compose up --build`  ->  http://localhost:8080
+# One config file for the stack: apps/backend/.env (API_KEY, ENVIRONMENT, APP_VERSION, Azure and Ollama settings).
+# Each app needs its lockfile first: `uv lock` in apps/backend (generated with the project), `npm ci` is done by the build.
+services:
+  api:
+    build:
+      context: ./apps/backend
+      args:
+        APP_VERSION: ${APP_VERSION:-0.0.1}
+    env_file: ./apps/backend/.env
+    environment:
+      # Inside the container localhost is the container itself.
+      OLLAMA_HOST: ${OLLAMA_HOST:-http://host.docker.internal:11434}
+    ports:
+      - "8000:8000"
+
+  web:
+    build: ./apps/frontend
+    # Same file so nginx gets the same API_KEY the backend checks. Local convenience only: it also receives the other
+    # variables. In Azure each web app has its own settings (see docs/infrastructure.md).
+    env_file: ./apps/backend/.env
+    environment:
+      BACKEND_URL: http://api:8000
+    ports:
+      - "8080:8080"
+    depends_on:
+      api:
+        condition: service_healthy

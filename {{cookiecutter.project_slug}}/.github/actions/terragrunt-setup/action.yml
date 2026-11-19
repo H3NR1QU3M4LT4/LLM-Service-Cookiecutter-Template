@@ -1,0 +1,86 @@
+name: Terragrunt setup
+description: Install Terraform + Terragrunt and, optionally, log in to Azure for one environment.
+
+inputs:
+  azure:
+    description: Log in to Azure and export backend/ARM variables ("true" or "false")
+    default: "true"
+  azure-credentials:
+    description: Service principal JSON ({clientId, clientSecret, tenantId, subscriptionId})
+    default: ""
+  subscription-id:
+    description: Azure subscription ID for the target environment
+    default: ""
+  state-resource-group:
+    default: ""
+  state-storage-account:
+    default: ""
+  state-container:
+    default: tfstate
+
+runs:
+  using: composite
+  steps:
+    - uses: hashicorp/setup-terraform@v4
+      with:
+        terraform_version: 1.14.4
+
+    - name: Install Terragrunt
+      shell: bash
+      run: |
+        set -euo pipefail
+        TG_VERSION="0.72.5"
+        curl -sSL -o terragrunt "https://github.com/gruntwork-io/terragrunt/releases/download/v${TG_VERSION}/terragrunt_linux_amd64"
+        chmod +x terragrunt
+        sudo mv terragrunt /usr/local/bin/terragrunt
+        terragrunt --version
+
+    - name: Export backend and ARM variables
+      if: ${{ inputs.azure == 'true' }}
+      shell: bash
+      env:
+        AZURE_CREDENTIALS_JSON: ${{ inputs.azure-credentials }}
+        SUBSCRIPTION_ID: ${{ inputs.subscription-id }}
+        STATE_RG: ${{ inputs.state-resource-group }}
+        STATE_SA: ${{ inputs.state-storage-account }}
+        STATE_CONTAINER: ${{ inputs.state-container }}
+      run: |
+        set -euo pipefail
+        client_id=$(printf '%s' "$AZURE_CREDENTIALS_JSON" | jq -r '.clientId')
+        client_secret=$(printf '%s' "$AZURE_CREDENTIALS_JSON" | jq -r '.clientSecret')
+        tenant_id=$(printf '%s' "$AZURE_CREDENTIALS_JSON" | jq -r '.tenantId')
+        echo "::add-mask::${client_id}"
+        echo "::add-mask::${client_secret}"
+        echo "::add-mask::${tenant_id}"
+        {
+          echo "TG_STATE_RESOURCE_GROUP=${STATE_RG}"
+          echo "TG_STATE_STORAGE_ACCOUNT=${STATE_SA}"
+          echo "TG_STATE_CONTAINER=${STATE_CONTAINER}"
+          echo "ARM_CLIENT_ID=${client_id}"
+          echo "ARM_CLIENT_SECRET=${client_secret}"
+          echo "ARM_TENANT_ID=${tenant_id}"
+          echo "ARM_SUBSCRIPTION_ID=${SUBSCRIPTION_ID}"
+          echo "TF_VAR_subscription_id=${SUBSCRIPTION_ID}"
+        } >> "$GITHUB_ENV"
+
+    - name: Azure login
+      if: ${{ inputs.azure == 'true' }}
+      uses: azure/login@v3
+      with:
+        creds: ${{ inputs.azure-credentials }}
+        allow-no-subscriptions: true
+
+    - name: Select subscription and register resource providers
+      if: ${{ inputs.azure == 'true' }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        az account set --subscription "$ARM_SUBSCRIPTION_ID"
+        for provider in Microsoft.CognitiveServices Microsoft.ContainerRegistry Microsoft.Web \
+          Microsoft.OperationalInsights Microsoft.Insights Microsoft.Consumption; do
+          state=$(az provider show --namespace "$provider" --query registrationState -o tsv 2>/dev/null || echo "NotRegistered")
+          if [ "$state" != "Registered" ]; then
+            echo "Registering Azure resource provider: $provider"
+            az provider register --namespace "$provider" --wait
+          fi
+        done

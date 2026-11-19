@@ -1,4 +1,4 @@
-# Runs on every pull request and on pushes to main. Make the "quality" and "docker" checks required in
+# Runs on every pull request and on pushes to main. Mark "quality" and "docker" as required checks in
 # GitHub (Settings > Branches > branch protection) so PRs cannot merge while they fail.
 name: ci
 
@@ -7,43 +7,83 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   quality:
+    name: quality (pre-commit + pre-push hooks)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
 
       - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: |
+            apps/frontend/package-lock.json
+            apps/evals/dashboard/package-lock.json
+
       - run: uv sync --locked
+        working-directory: apps/backend
+      - run: uv sync --locked
+        working-directory: apps/evals
+      - run: npm ci
+        working-directory: apps/frontend
+      - run: npm ci
+        working-directory: apps/evals/dashboard
+
+      - run: uv tool install pre-commit
 
       - uses: actions/cache@v4
         with:
           path: ~/.cache/pre-commit
           key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
 
-      # The same hooks as local commits: file checks, gitleaks, ruff, ruff format, mypy, pylint.
-      - name: Hooks
-        run: uv run pre-commit run --all-files --show-diff-on-failure
+      # ruff check, ruff format, mypy, pylint, file checks, gitleaks (the commit-msg hook is local-only).
+      - name: Commit-stage hooks
+        run: pre-commit run --all-files --show-diff-on-failure
 
-      - name: Tests
-        run: uv run pytest -q
+      # pytest with the 80% coverage gate, and the frontend type-check + build.
+      - name: Pre-push-stage hooks
+        run: pre-commit run --all-files --hook-stage pre-push --show-diff-on-failure
+
+      # The gitleaks hook only scans staged changes, which is nothing on a CI checkout.
+      - name: Gitleaks (full history)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   docker:
+    name: docker (${{ matrix.app }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [backend, frontend]
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
       - uses: docker/build-push-action@v6
         with:
-          context: .
+          context: apps/${{ matrix.app }}
           push: false
-          platforms: linux/amd64
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=${{ matrix.app }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.app }}

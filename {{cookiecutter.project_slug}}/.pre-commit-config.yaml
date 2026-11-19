@@ -1,13 +1,18 @@
+# Install once: `uv tool install pre-commit && pre-commit install --install-hooks \
+#   -t pre-commit -t pre-push -t commit-msg -t post-checkout -t post-merge`
+# CI runs this same file (.github/workflows/ci.yml), so local and CI checks cannot drift.
+# Backend hooks run from apps/backend with its venv (`uv sync` there first), so tool versions follow uv.lock.
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
       - id: check-added-large-files
         args: ["--maxkb=500"]
-        exclude: ^uv\.lock$  # generated lock files are legitimately large
+        exclude: (^|/)(uv\.lock|package-lock\.json)$
       - id: check-yaml
       - id: check-toml
       - id: check-json
+        exclude: tsconfig.*\.json$
       - id: check-merge-conflict
       - id: debug-statements
       - id: detect-private-key
@@ -19,41 +24,137 @@ repos:
     hooks:
       - id: gitleaks
 
-  # ruff and mypy run from the project venv so their versions follow uv.lock, not a pinned hook rev.
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v3.4.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+
   - repo: local
     hooks:
       - id: ruff-check
         name: ruff check
-        entry: uv run ruff check --fix
+        entry: bash -c 'cd apps/backend && uv run ruff check --fix .'
         language: system
-        types: [python]
+        files: ^apps/backend/
+        pass_filenames: false
       - id: ruff-format
         name: ruff format
-        entry: uv run ruff format
+        entry: bash -c 'cd apps/backend && uv run ruff format .'
         language: system
-        types: [python]
+        files: ^apps/backend/
+        pass_filenames: false
       - id: mypy
         name: mypy
-        entry: uv run mypy
+        entry: bash -c 'cd apps/backend && uv run mypy'
         language: system
-        types: [python]
+        files: ^apps/backend/
         pass_filenames: false
       - id: pylint
         name: pylint
-        entry: uv run pylint --score=n
+        entry: bash -c 'cd apps/backend && uv run pylint --score=n src'
         language: system
-        types: [python]
-        exclude: ^tests/
+        files: ^apps/backend/
+        pass_filenames: false
       - id: pylint-tests
         name: pylint tests
         # Tests patch private attributes and use pytest fixtures by name.
-        entry: uv run pylint --score=n --disable=protected-access,redefined-outer-name
+        entry: bash -c 'cd apps/backend && uv run pylint --score=n --disable=protected-access,redefined-outer-name tests'
         language: system
-        types: [python]
-        files: ^tests/
-      - id: pytest
-        name: pytest
-        entry: uv run pytest -q
+        files: ^apps/backend/
+        pass_filenames: false
+
+      - id: evals-ruff-check
+        name: evals ruff check
+        entry: bash -c 'cd apps/evals && uv run ruff check --fix .'
+        language: system
+        files: ^apps/evals/
+        pass_filenames: false
+      - id: evals-ruff-format
+        name: evals ruff format
+        entry: bash -c 'cd apps/evals && uv run ruff format .'
+        language: system
+        files: ^apps/evals/
+        pass_filenames: false
+      - id: evals-mypy
+        name: evals mypy
+        entry: bash -c 'cd apps/evals && uv run mypy'
+        language: system
+        files: ^apps/(evals|backend)/
+        pass_filenames: false
+      - id: evals-pylint
+        name: evals pylint
+        entry: bash -c 'cd apps/evals && uv run pylint --score=n evals && uv run pylint --score=n --disable=protected-access,redefined-outer-name tests'
+        language: system
+        files: ^apps/(evals|backend)/
+        pass_filenames: false
+      - id: ui-sync
+        name: frontends share the same layout
+        entry: scripts/check-ui-sync.sh
+        language: system
+        files: ^apps/(frontend|evals/dashboard)/(src/layout|src/index\.css|src/assets|public)
+        pass_filenames: false
+
+      # Pre-push: slower checks.
+      - id: uv-sync
+        name: uv sync
+        entry: bash -c 'cd apps/backend && uv sync --locked && cd ../evals && uv sync --locked'
         language: system
         pass_filenames: false
+        always_run: true
         stages: [pre-push]
+      - id: pytest
+        name: pytest
+        entry: bash -c 'cd apps/backend && uv run pytest -q --no-cov'
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+      - id: coverage
+        name: coverage >= 80%
+        # The threshold lives in apps/backend/pyproject.toml (addopts --cov-fail-under=80).
+        entry: bash -c 'cd apps/backend && uv run pytest -q'
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]
+      - id: evals-pytest-coverage
+        name: evals pytest + coverage >= 80%
+        entry: bash -c 'cd apps/evals && uv run pytest -q'
+        language: system
+        files: ^apps/(evals|backend)/
+        pass_filenames: false
+        stages: [pre-push]
+      - id: dashboard-typecheck-build
+        name: evals dashboard tsc + build
+        entry: bash -c 'cd apps/evals/dashboard && npm run build'
+        language: system
+        files: ^apps/evals/dashboard/
+        pass_filenames: false
+        stages: [pre-push]
+      - id: frontend-typecheck-build
+        name: frontend tsc + build
+        entry: bash -c 'cd apps/frontend && npm run build'
+        language: system
+        files: ^apps/frontend/
+        pass_filenames: false
+        stages: [pre-push]
+
+      # Keep dependencies in step after switching branches or pulling.
+      - id: post-checkout-sync
+        name: uv sync + npm ci on checkout
+        entry: bash -c 'cd apps/backend && uv sync --locked; cd ../evals && uv sync --locked; cd dashboard && npm ci; cd ../../frontend && npm ci'
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [post-checkout]
+      - id: post-merge-sync
+        name: uv sync + npm ci on merge
+        entry: bash -c 'cd apps/backend && uv sync --locked; cd ../evals && uv sync --locked; cd dashboard && npm ci; cd ../../frontend && npm ci'
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [post-merge]
+
+default_language_version:
+  python: python3.13
